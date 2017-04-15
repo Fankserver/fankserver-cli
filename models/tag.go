@@ -15,7 +15,7 @@ type Tag struct {
 	TeamspeakServerGroupID int           `json:"teamspeak_sgid" bson:"teamspeak_sgid,omitempty"`
 }
 
-func indexTag() {
+func initTag() {
 	Db := connection.MongoDB{}
 	Db.Init()
 	defer Db.Close()

@@ -1,6 +1,6 @@
 package models
 
-func SetupIndex() {
-	indexTag()
+func Init() {
+	initTag()
 	indexUser()
 }

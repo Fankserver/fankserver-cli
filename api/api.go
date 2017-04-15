@@ -29,7 +29,7 @@ func Listen(ctx *cli.Context) error {
 	Db.Init()
 
 	// Setup model indizes
-	models.SetupIndex()
+	models.Init()
 
 	app := iris.New()
 	app.Adapt(iris.DevLogger())
