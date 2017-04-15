@@ -1,8 +1,6 @@
 package models
 
 import (
-	"log"
-
 	"github.com/fankserver/fankserver-cli/connection"
 	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
@@ -35,11 +33,23 @@ func indexTag() {
 	}
 
 	count, err := Db.C(TagCollection).Find(nil).Count()
-	log.Println("count", count)
+	if err != nil {
+		panic(err)
+	}
 	if count == 0 {
-		err = Db.C(TagCollection).Insert(Tag{
+		initialTagCreation(Db)
+	}
+}
+
+func initialTagCreation(db connection.MongoDB) {
+	tags := []Tag{
+		Tag{
 			Name: "admin",
-		})
+		},
+	}
+
+	for tag := range tags {
+		err := db.C(TagCollection).Insert(tag)
 		if err != nil {
 			panic(err)
 		}
