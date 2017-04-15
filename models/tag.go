@@ -48,7 +48,7 @@ func initialTagCreation(db connection.MongoDB) {
 		},
 	}
 
-	for tag := range tags {
+	for _, tag := range tags {
 		err := db.C(TagCollection).Insert(tag)
 		if err != nil {
 			panic(err)
