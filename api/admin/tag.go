@@ -24,34 +24,38 @@ type Tag struct {
 }
 
 func (a *Tag) GetTags(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	tags := []models.Tag{}
-	err := Db.C(models.TagCollection).Find(nil).All(&tags)
+	err := db.C(models.TagCollection).Find(nil).All(&tags)
 	if err != nil {
-		ctx.HTML(iris.StatusInternalServerError, "Error")
-	} else {
-		ctx.JSON(iris.StatusOK, tags)
+		ctx.EmitError(iris.StatusInternalServerError)
+		return
 	}
+
+	ctx.JSON(iris.StatusOK, tags)
 }
 
 func (a *Tag) GetTag(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	var tag models.Tag
-	err := Db.C(models.TagCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).One(&tag)
+	err := db.C(models.TagCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).One(&tag)
 	if err != nil {
-		ctx.HTML(iris.StatusNotFound, "Not found")
-	} else {
-		ctx.JSON(iris.StatusOK, tag)
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
+		return
 	}
+
+	ctx.JSON(iris.StatusOK, tag)
 }
 
 func (a *Tag) AddTag(ctx *iris.Context) {
+	db := ctx.Get("mongo").(connection.MongoDB)
+
 	var tag models.Tag
 	err := ctx.ReadJSON(&tag)
 	if err != nil {
@@ -65,34 +69,37 @@ func (a *Tag) AddTag(ctx *iris.Context) {
 		return
 	}
 
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
-
-	err = Db.C(models.TagCollection).Insert(tag)
+	err = db.C(models.TagCollection).Insert(tag)
 	if err != nil {
-		ctx.EmitError(iris.StatusConflict)
+		if db.IsDup(err) {
+			ctx.EmitError(iris.StatusConflict)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
 		return
 	}
 
-	ctx.EmitError(iris.StatusOK)
+	ctx.EmitError(iris.StatusCreated)
 }
 
 func (a *Tag) SetTag(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
+	objectID := bson.ObjectIdHex(ctx.Param("id"))
 
 	var tag models.Tag
-	err := Db.C(models.TagCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).One(&tag)
+	err := db.C(models.TagCollection).FindId(objectID).One(&tag)
 	if err != nil {
-		ctx.HTML(iris.StatusNotFound, "Not found")
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
 		return
 	}
 
 	err = ctx.ReadJSON(&tag)
 	if err != nil {
-		ctx.HTML(iris.StatusBadRequest, "error parsing")
+		ctx.EmitError(iris.StatusBadRequest)
 		return
 	}
 
@@ -101,9 +108,9 @@ func (a *Tag) SetTag(ctx *iris.Context) {
 		ReturnNew: true,
 	}
 	var updatedTag models.Tag
-	_, err = Db.C(models.TagCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).Apply(change, &updatedTag)
+	_, err = db.C(models.TagCollection).FindId(objectID).Apply(change, &updatedTag)
 	if err != nil {
-		ctx.HTML(iris.StatusInternalServerError, "")
+		ctx.EmitError(iris.StatusInternalServerError)
 		return
 	}
 
@@ -111,14 +118,17 @@ func (a *Tag) SetTag(ctx *iris.Context) {
 }
 
 func (a *Tag) RemoveTag(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
-	err := Db.C(models.TagCollection).RemoveId(bson.ObjectIdHex(ctx.Param("id")))
+	err := db.C(models.TagCollection).RemoveId(bson.ObjectIdHex(ctx.Param("id")))
 	if err != nil {
-		ctx.HTML(iris.StatusNotFound, "Not found")
-	} else {
-		ctx.EmitError(iris.StatusOK)
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
+		return
 	}
+
+	ctx.EmitError(iris.StatusOK)
 }

@@ -16,9 +16,9 @@ type Tag struct {
 }
 
 func initTag() {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := connection.MongoDB{}
+	db.Init()
+	defer db.Close()
 
 	index := mgo.Index{
 		Key:        []string{"name"},
@@ -27,17 +27,17 @@ func initTag() {
 		Background: true, // See notes.
 		Sparse:     true,
 	}
-	err := Db.C(TagCollection).EnsureIndex(index)
+	err := db.C(TagCollection).EnsureIndex(index)
 	if err != nil {
 		panic(err)
 	}
 
-	count, err := Db.C(TagCollection).Find(nil).Count()
+	count, err := db.C(TagCollection).Find(nil).Count()
 	if err != nil {
 		panic(err)
 	}
 	if count == 0 {
-		initialTagCreation(Db)
+		initialTagCreation(db)
 	}
 }
 

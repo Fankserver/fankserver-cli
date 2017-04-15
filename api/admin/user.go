@@ -21,46 +21,49 @@ func NewUser(router *iris.Router) {
 type User struct{}
 
 func (a *User) GetUsers(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	users := []models.User{}
-	err := Db.C(models.UserCollection).Find(nil).Select(bson.M{"password": 0}).All(&users)
+	err := db.C(models.UserCollection).Find(nil).Select(bson.M{"password": 0}).All(&users)
 	if err != nil {
-		ctx.HTML(iris.StatusInternalServerError, "Error")
+		ctx.EmitError(iris.StatusInternalServerError)
 	} else {
 		ctx.JSON(iris.StatusOK, users)
 	}
 }
 
 func (a *User) GetUser(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	var user models.User
 	operations := []bson.M{
-		models.MatchById(ctx.Param("id")),
+		models.MatchByID(ctx.Param("id")),
 		models.UserLookupTags,
 	}
-	err := Db.C(models.UserCollection).Pipe(operations).One(&user)
+	err := db.C(models.UserCollection).Pipe(operations).One(&user)
 	if err != nil {
-		ctx.HTML(iris.StatusNotFound, "Not found")
-	} else {
-		ctx.JSON(iris.StatusOK, user)
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
+		return
 	}
+
+	ctx.JSON(iris.StatusOK, user)
 }
 
 func (a *User) SetUser(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	var user models.User
-	err := Db.C(models.UserCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).One(&user)
+	err := db.C(models.UserCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).One(&user)
 	if err != nil {
-		ctx.HTML(iris.StatusNotFound, "Not found")
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -68,7 +71,7 @@ func (a *User) SetUser(ctx *iris.Context) {
 
 	err = ctx.ReadJSON(&user)
 	if err != nil {
-		ctx.HTML(iris.StatusBadRequest, "error parsing")
+		ctx.EmitError(iris.StatusBadRequest)
 		return
 	}
 
@@ -83,25 +86,23 @@ func (a *User) SetUser(ctx *iris.Context) {
 		ReturnNew: true,
 	}
 	var updatedUser models.User
-	_, err = Db.C(models.UserCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).Apply(change, &updatedUser)
+	_, err = db.C(models.UserCollection).FindId(bson.ObjectIdHex(ctx.Param("id"))).Apply(change, &updatedUser)
 	if err != nil {
-		ctx.HTML(iris.StatusInternalServerError, "")
+		ctx.EmitError(iris.StatusInternalServerError)
 	} else {
 		ctx.EmitError(iris.StatusOK)
 	}
 }
 
 func (a *User) AddTag(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	change := bson.M{
 		"$push": bson.M{
 			"tags": bson.ObjectIdHex(ctx.Param("tag")),
 		},
 	}
-	err := Db.C(models.UserCollection).UpdateId(bson.ObjectIdHex(ctx.Param("id")), change)
+	err := db.C(models.UserCollection).UpdateId(bson.ObjectIdHex(ctx.Param("id")), change)
 	if err != nil {
 		ctx.JSON(iris.StatusInternalServerError, err)
 		return
@@ -111,18 +112,20 @@ func (a *User) AddTag(ctx *iris.Context) {
 }
 
 func (a *User) RemoveTag(ctx *iris.Context) {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := ctx.Get("mongo").(connection.MongoDB)
 
 	change := bson.M{
 		"$pull": bson.M{
 			"tags": bson.ObjectIdHex(ctx.Param("tag")),
 		},
 	}
-	err := Db.C(models.UserCollection).UpdateId(bson.ObjectIdHex(ctx.Param("id")), change)
+	err := db.C(models.UserCollection).UpdateId(bson.ObjectIdHex(ctx.Param("id")), change)
 	if err != nil {
-		ctx.JSON(iris.StatusInternalServerError, err)
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
 		return
 	}
 

@@ -11,11 +11,11 @@ import (
 	"github.com/fankserver/fankserver-cli/models"
 
 	"gopkg.in/kataras/iris.v6"
-	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/kataras/iris.v6/adaptors/cors"
 	"gopkg.in/kataras/iris.v6/adaptors/httprouter"
-	cli "gopkg.in/urfave/cli.v2"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
+	cli "gopkg.in/urfave/cli.v2"
 )
 
 func Listen(ctx *cli.Context) error {
@@ -25,8 +25,8 @@ func Listen(ctx *cli.Context) error {
 	}
 
 	// Setup mongodb
-	Db := connection.MongoDB{}
-	Db.Init()
+	db := connection.MongoDB{}
+	db.Init()
 
 	// Setup model indizes
 	models.Init()
@@ -40,6 +40,16 @@ func Listen(ctx *cli.Context) error {
 			AllowCredentials: true,
 		}),
 	)
+
+	app.UseFunc(func(ctx *iris.Context) {
+		db := connection.MongoDB{}
+		db.Init()
+		defer db.Close()
+
+		ctx.Set("mongo", db)
+
+		ctx.Next()
+	})
 
 	auth := app.Party("/auth", func(ctx *iris.Context) {
 		ctx.Next()
@@ -67,15 +77,13 @@ func Listen(ctx *cli.Context) error {
 	return nil
 }
 
-func userHasTags(tag string) iris.HandlerFunc{
+func userHasTags(tag string) iris.HandlerFunc {
 	return func(ctx *iris.Context) {
+		db := ctx.Get("mongo").(connection.MongoDB)
 		jwtUser := ctx.Get("jwt").(*jwt.Token).Claims.(jwt.MapClaims)["user"]
-		db := connection.MongoDB{}
-		db.Init()
-		defer db.Close()
 
 		operations := []bson.M{
-			models.MatchById(jwtUser.(map[string]interface{})["id"].(string)),
+			models.MatchByID(jwtUser.(map[string]interface{})["id"].(string)),
 			models.UserLookupTags,
 			bson.M{
 				"$match": bson.M{

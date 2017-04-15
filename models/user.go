@@ -31,9 +31,9 @@ type User struct {
 }
 
 func indexUser() {
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
+	db := connection.MongoDB{}
+	db.Init()
+	defer db.Close()
 
 	index := mgo.Index{
 		Key:        []string{"username"},
@@ -42,7 +42,7 @@ func indexUser() {
 		Background: true, // See notes.
 		Sparse:     true,
 	}
-	err := Db.C(UserCollection).EnsureIndex(index)
+	err := db.C(UserCollection).EnsureIndex(index)
 	if err != nil {
 		panic(err)
 	}
@@ -54,7 +54,7 @@ func indexUser() {
 		Background: true, // See notes.
 		Sparse:     true,
 	}
-	err = Db.C(UserCollection).EnsureIndex(index)
+	err = db.C(UserCollection).EnsureIndex(index)
 	if err != nil {
 		panic(err)
 	}

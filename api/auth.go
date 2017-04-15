@@ -12,6 +12,7 @@ import (
 	"github.com/fankserver/fankserver-cli/models"
 	"golang.org/x/crypto/sha3"
 	iris "gopkg.in/kataras/iris.v6"
+	mgo "gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -25,6 +26,8 @@ func NewAuthAPI(router *iris.Router) {
 type AuthAPI struct{}
 
 func (a *AuthAPI) Login(ctx *iris.Context) {
+	db := ctx.Get("mongo").(connection.MongoDB)
+
 	loginUser := models.User{}
 	err := ctx.ReadJSON(&loginUser)
 	if err != nil {
@@ -32,13 +35,14 @@ func (a *AuthAPI) Login(ctx *iris.Context) {
 		return
 	}
 
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
-
 	usr := models.User{}
-	if err := Db.C(models.UserCollection).Find(bson.M{"username": loginUser.Username}).One(&usr); err != nil {
-		ctx.EmitError(iris.StatusNotFound)
+	err = db.C(models.UserCollection).Find(bson.M{"username": loginUser.Username}).One(&usr)
+	if err != nil {
+		if err == mgo.ErrNotFound {
+			ctx.EmitError(iris.StatusNotFound)
+		} else {
+			ctx.EmitError(iris.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -64,6 +68,8 @@ func (a *AuthAPI) Login(ctx *iris.Context) {
 }
 
 func (a *AuthAPI) Register(ctx *iris.Context) {
+	db := ctx.Get("mongo").(connection.MongoDB)
+
 	registerUser := models.User{}
 	err := ctx.ReadJSON(&registerUser)
 	if err != nil {
@@ -71,7 +77,8 @@ func (a *AuthAPI) Register(ctx *iris.Context) {
 		return
 	}
 
-	if err := validator.Validate(registerUser); err != nil {
+	err = validator.Validate(registerUser)
+	if err != nil {
 		ctx.EmitError(iris.StatusBadRequest)
 		return
 	}
@@ -79,19 +86,17 @@ func (a *AuthAPI) Register(ctx *iris.Context) {
 	registerUser.Salt = a.generateSalt()
 	registerUser.Password = a.hashPassword(registerUser.Password, registerUser.Salt)
 
-	Db := connection.MongoDB{}
-	Db.Init()
-	defer Db.Close()
-
-	if err := Db.C(models.UserCollection).Insert(&registerUser); err != nil {
-		if Db.IsDup(err) {
+	err = db.C(models.UserCollection).Insert(&registerUser)
+	if err != nil {
+		if db.IsDup(err) {
 			ctx.EmitError(iris.StatusConflict)
 		} else {
 			ctx.EmitError(iris.StatusInternalServerError)
 		}
-	} else {
-		ctx.EmitError(iris.StatusCreated)
+		return
 	}
+
+	ctx.EmitError(iris.StatusCreated)
 }
 
 func (a *AuthAPI) validatePassword(usr *models.User, password string) bool {
