@@ -1,0 +1,15 @@
+[jwt]
+	secret = ""
+
+[database]
+	[database.mongo]
+	hostname = "mongo"
+	port = 27017
+	username = ""
+	password = ""
+	database = "db"
+
+	[database.redis]
+	hostname = "redis"
+	port = 6379
+	password = ""
